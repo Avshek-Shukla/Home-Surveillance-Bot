@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:homesurveillance/botfeeds.dart';
 import 'package:lottie/lottie.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:http/http.dart' as http;
@@ -15,6 +17,10 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   bool flashStatus = false;
   bool isCamConnected = false;
+  double speed = 0;
+  String camID = "http://192.168.1.5";
+  String connectionStatus = "Not Connected";
+  TextEditingController camIDController = TextEditingController();
   late StreamSubscription subscription = Connectivity()
       .onConnectivityChanged
       .listen((ConnectivityResult result) async {
@@ -46,8 +52,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future checkCamera() async {
+    setState(() {
+      connectionStatus = "Connecting...";
+    });
     try {
-      final response = await http.get(Uri.parse('http://192.168.1.11'));
+      final response = await http.get(Uri.parse(camID));
       if (response.statusCode == 200) {
         setState(() {
           isCamConnected = true;
@@ -55,11 +64,13 @@ class _HomePageState extends State<HomePage> {
       } else {
         setState(() {
           isCamConnected = false;
+          connectionStatus = "Failed";
         });
       }
     } catch (e) {
       setState(() {
         isCamConnected = false;
+        connectionStatus = "Failed";
       });
     }
   }
@@ -106,7 +117,7 @@ class _HomePageState extends State<HomePage> {
                         ? "No Internet"
                         : isCamConnected
                             ? "Connected"
-                            : "Connecting...",
+                            : connectionStatus,
                     style:
                         const TextStyle(fontSize: 12, fontFamily: "Righteous"),
                   ),
@@ -126,9 +137,9 @@ class _HomePageState extends State<HomePage> {
             splashRadius: 25,
             onPressed: () {
               if (flashStatus) {
-                sendFlashData(0);
+                sendFlashData(0, camID);
               } else {
-                sendFlashData(255);
+                sendFlashData(255, camID);
               }
               setState(() {
                 flashStatus = !flashStatus;
@@ -145,6 +156,7 @@ class _HomePageState extends State<HomePage> {
       alignment: Alignment.bottomLeft,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
@@ -159,10 +171,10 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     GestureDetector(
                       onTapDown: (_) {
-                        controllerFeed(1);
+                        controllerFeed(1, camID);
                       },
                       onTapUp: (_) {
-                        controllerFeed(3);
+                        controllerFeed(3, camID);
                       },
                       child: const Icon(
                         Icons.arrow_upward,
@@ -192,10 +204,10 @@ class _HomePageState extends State<HomePage> {
                     ),
                     GestureDetector(
                       onTapDown: (_) {
-                        controllerFeed(5);
+                        controllerFeed(5, camID);
                       },
                       onTapUp: (_) {
-                        controllerFeed(3);
+                        controllerFeed(3, camID);
                       },
                       child: const Icon(
                         Icons.arrow_downward,
@@ -205,6 +217,20 @@ class _HomePageState extends State<HomePage> {
                   ]),
             ),
           ),
+          Container(
+              height: 85,
+              width: 400,
+              child: CupertinoSlider(
+                  value: speed,
+                  min: 0,
+                  max: 255,
+                  activeColor: Colors.white,
+                  onChanged: (changedVal) {
+                    setState(() {
+                      speed = changedVal;
+                    });
+                    changeSpeed(speed.toInt(), camID);
+                  })),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
             child: Container(
@@ -229,10 +255,10 @@ class _HomePageState extends State<HomePage> {
                       children: [
                         GestureDetector(
                           onTapDown: (_) {
-                            controllerFeed(2);
+                            controllerFeed(2, camID);
                           },
                           onTapUp: (_) {
-                            controllerFeed(3);
+                            controllerFeed(3, camID);
                           },
                           child: const Icon(
                             Icons.arrow_back,
@@ -241,10 +267,10 @@ class _HomePageState extends State<HomePage> {
                         ),
                         GestureDetector(
                           onTapDown: (_) {
-                            controllerFeed(4);
+                            controllerFeed(4, camID);
                           },
                           onTapUp: (_) {
-                            controllerFeed(3);
+                            controllerFeed(3, camID);
                           },
                           child: const Icon(
                             Icons.arrow_forward,
@@ -275,47 +301,126 @@ class _HomePageState extends State<HomePage> {
       width: double.infinity,
       color: Colors.transparent,
       child: !isCamConnected
-          ? Lottie.asset("assets/lottie/cctv.json", repeat: true, animate: true)
-          : const Mjpeg(
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Lottie.asset("assets/lottie/cctv.json",
+                    repeat: true, animate: true),
+                const SizedBox(
+                  height: 5,
+                ),
+                InkWell(
+                  onTap: () {
+                    showDialog(
+                        context: context, builder: ((context) => fillIP()));
+                  },
+                  child: const Text(
+                    "Connect",
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontFamily: "Righteous",
+                        decoration: TextDecoration.underline),
+                  ),
+                )
+              ],
+            )
+          : Mjpeg(
               isLive: true,
               height: double.infinity,
               width: double.infinity,
               fit: BoxFit.fill,
-              timeout: Duration(seconds: 1000),
-              stream: "http://192.168.1.11:81/stream"),
+              timeout: const Duration(seconds: 1000),
+              stream: "$camID:81/stream"),
     );
   }
 
-  void sendFlashData(int value) async {
-    print("dd");
-    try {
-      var response = await http
-          .get(Uri.parse('http://192.168.1.11/control?var=flash&val=$value'));
-      if (response.statusCode == 200) {
-        // Request successful
-        print('Flash Status Changed');
-      } else {
-        // Request failed
-        print('Failed to send request');
-      }
-    } catch (e) {
-      print('Error occurred: $e');
-    }
-  }
+  Widget fillIP() {
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      titlePadding:
+          const EdgeInsets.only(top: 15, left: 20, right: 20, bottom: 20),
+      contentPadding: const EdgeInsets.only(left: 20, right: 20, bottom: 8),
+      actionsPadding: const EdgeInsets.only(right: 20, top: 30),
+      insetPadding: EdgeInsets.zero,
+      title: const Text(
+        "Connect Bot",
+      ),
+      titleTextStyle: const TextStyle(
+        fontSize: 20,
+        fontFamily: "Righteous",
+        color: Colors.black,
+      ),
+      content: SizedBox(
+        width: 350,
+        child: TextField(
+          controller: camIDController,
+          textAlignVertical: TextAlignVertical.center,
+          textAlign: TextAlign.start,
+          keyboardType: TextInputType.number,
+          style: const TextStyle(
+              color: Colors.black, fontSize: 16, fontFamily: "Righteous"),
+          decoration: InputDecoration(
+            contentPadding: EdgeInsets.zero,
+            hintText: "192.168.1.11",
+            hintStyle: const TextStyle(color: Colors.grey),
+            fillColor: Colors.grey.withOpacity(0.2),
+            filled: true,
+            prefixIcon: const Padding(
+              padding: EdgeInsets.only(left: 8, right: 4),
+              child: Text(
+                "http://",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.black, fontFamily: "Righteous"),
+              ),
+            ),
+            prefixIconConstraints:
+                const BoxConstraints(minWidth: 0, minHeight: 0),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8.0),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: const BorderSide(color: Colors.blue, width: 2),
+              borderRadius: BorderRadius.circular(8.0),
+            ),
+            // prefixText: "http:// ",
+            // prefixStyle: TextStyle(color: Colors.black),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          child: const Text(
+            "CANCEL",
+            style: TextStyle(fontFamily: "Righteous", color: Colors.white),
+          ),
+        ),
+        TextButton(
+            onPressed: () async {
+              if (camIDController.value.text.isNotEmpty) {
+                setState(() {
+                  camID = 'http://${camIDController.value.text}';
+                  checkCamera();
+                });
+                Navigator.pop(context);
+              } else {
+                setState(() {
+                  connectionStatus = "Wrong ID";
+                });
 
-  void controllerFeed(int data) async {
-    try {
-      var response = await http
-          .get(Uri.parse('http://192.168.1.11/control?var=car&val=$data'));
-      if (response.statusCode == 200) {
-        // Request successful
-        print('Bot Movement Success');
-      } else {
-        // Request failed
-        print('Failed to send request');
-      }
-    } catch (e) {
-      print('Error occurred: $e');
-    }
+                Navigator.pop(context);
+              }
+              camIDController.clear();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text(
+              "CONNECT",
+              style: TextStyle(fontFamily: "Righteous", color: Colors.white),
+            ))
+      ],
+    );
   }
 }
