@@ -57,7 +57,7 @@ The following schematic illustrates the wiring connections between the **ESP32-C
 - **DC Motors** provide mobility for the surveillance robot  
 - **Power Supply** (Li-Ion battery or USB power bank) powers both ESP32-CAM and motor driver  
 
-![Schematic Diagram](docs/schematic.png)  
+![Schematic Diagram](ESP32Cam Code/SchematicDiagram.png)  
 
 > *Note: Ensure that the power supply voltage matches the ESP32-CAM and motor driver requirements to prevent damage to components.*  
 
